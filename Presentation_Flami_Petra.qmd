@@ -1,0 +1,283 @@
+---
+title: "Netflix Data Analysis"
+subtitle: "From Data Cleaning to Advanced Insights"
+author: "Petra Dudas and Flaminia Neda"
+format:
+  revealjs:
+    theme: dark
+    slide-number: true
+    transition: fade
+    css: styles.css
+execute:
+  echo: false
+  warning: false
+  message: false
+editor: visual
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(tidyverse)
+library(lubridate)
+
+netflix_raw <- read_csv("data/netflix_titles.csv")
+
+netflix_clean <- netflix_raw %>%
+  mutate(
+    director = if_else(is.na(director), "Unknown", director),
+    cast = if_else(is.na(cast), "Unknown", cast),
+    country = if_else(is.na(country), "Unknown", country),
+    rating = if_else(is.na(rating), "Unknown", rating)
+  ) %>%
+  filter(!is.na(date_added), !is.na(duration)) %>%
+  mutate(
+    date_added = mdy(date_added),
+    duration_number = as.numeric(str_extract(duration, "\\d+")),
+    duration_type = case_when(
+      str_detect(duration, "Season") ~ "Seasons",
+      str_detect(duration, "min") ~ "Minutes",
+      TRUE ~ "Unknown"
+    )
+  )
+```
+
+## Introduction
+
+-   Netflix is one of the world's leading streaming platforms, offering a wide variety of movies and TV shows across different genres and countries.
+
+-   In this project, we analyze a Netflix dataset to uncover patterns in content distribution, genres, and trends over time.
+
+## Data Overview
+
+The dataset contains information about Netflix titles, including:
+
+•⁠ ⁠Title type (Movie or TV Show)
+
+•⁠ ⁠Country of production
+
+•⁠ ⁠Release year
+
+•⁠ ⁠Genre classification
+
+•⁠ ⁠Duration
+
+## Data Cleaning Process
+
+Before analyzing the data, several cleaning steps were required:
+
+•⁠ ⁠Splitting duration into numeric and categorical values
+
+•⁠ ⁠Handling missing values
+
+•⁠ ⁠Separating multiple countries into individual entries
+
+•⁠ ⁠Removing duplicates
+
+## Top Producing Countries
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(gganimate)
+library(gifski)
+
+top5_countries <- netflix_clean %>%
+  filter(!is.na(country),
+         country != "Unknown",
+         country != "") %>%
+  count(country, sort = TRUE) %>%
+  slice_head(n = 5) %>%
+  pull(country)
+
+country_year <- netflix_clean %>%
+  filter(!is.na(country),
+         country != "Unknown",
+         country != "",
+         country %in% top5_countries,
+         !is.na(release_year),
+         release_year >= 2000) %>%
+  count(release_year, country)
+
+ggplot(country_year,
+       aes(x = reorder(country, n), y = n)) +
+  geom_col(fill = "#E50914") +
+  coord_flip() +
+  labs(
+    title = "Top 5 Countries on Netflix",
+    subtitle = "Release year: {closest_state}",
+    x = "Country",
+    y = "Number of Titles"
+  ) +
+  theme_minimal() +
+  transition_states(
+    release_year,
+    transition_length = 2,
+    state_length = 1
+  ) +
+  ease_aes("cubic-in-out")
+
+```
+
+The United States clearly dominates Netflix content production, followed by India and the United Kingdom. This highlights the strong influence of these countries in the global streaming market.
+
+## Most Popular Genres
+
+```{r}
+netflix_clean %>%
+  count(listed_in, sort = TRUE) %>%
+  top_n(10) %>%
+  ggplot(aes(x = reorder(listed_in, n), y = n)) +
+  geom_col() +
+  coord_flip() +
+  labs(title = "Top Genres on Netflix",
+       x = "Genre",
+       y = "Count")
+```
+
+International Movies are the most common genre on Netflix, followed by Drama and Comedy. This suggests a strong focus on globally diverse content.
+
+## Growth of Netflix Over Time
+
+```{r}
+titles_per_year <- netflix_clean %>%
+  filter(!is.na(release_year)) %>%
+  count(release_year)
+
+ggplot(titles_per_year, aes(x = release_year, y = n)) +
+  geom_point(color = "#E50914", size = 2) +
+  geom_smooth(method = "lm", se = TRUE, color = "#E50914") +
+  labs(
+    title = "Growth of Netflix Content Over Time",
+    subtitle = "Linear regression showing the trend in released titles",
+    x = "Release Year",
+    y = "Number of Titles"
+  ) +
+  theme_minimal()
+
+```
+
+The regression reveals a strong growth pattern, which forms the basis for the future predictions shown next.
+
+## Future Prediction
+
+```{r}
+model_titles <- lm(n ~ release_year, data = titles_per_year)
+
+future_years <- data.frame(
+  release_year = c(2022, 2023, 2024, 2025)
+)
+
+prediction_table <- future_years %>%
+  mutate(
+    predicted_titles = round(predict(model_titles, newdata = future_years), 0)
+  )
+
+prediction_table %>%
+  knitr::kable(
+    col.names = c("Year", "Predicted Titles"),
+    align = "cc"
+  ) %>%
+  kableExtra::kable_styling(
+    full_width = FALSE,
+    position = "center",
+    font_size = 40
+  )
+
+```
+
+## Content by Age Group
+
+```{r}
+netflix_clean <- netflix_clean %>%
+  mutate(age_group = case_when(
+    rating %in% c("TV-Y", "TV-Y7", "G") ~ "Kids",
+    rating %in% c("PG", "TV-PG") ~ "Family",
+    rating %in% c("PG-13", "TV-14") ~ "Teens",
+    rating %in% c("R", "TV-MA", "NC-17") ~ "Adults",
+    TRUE ~ "Other"
+  ))
+```
+
+```{r}
+netflix_clean %>%
+  count(age_group) %>%
+  ggplot(aes(x = age_group, y = n, fill = age_group)) +
+  geom_col() +
+  labs(
+    title = "Netflix Content by Age Group",
+    x = "Age Group",
+    y = "Number of Titles"
+  ) +
+  theme(legend.position = "none")
+```
+
+Most Netflix content is targeted toward adults and teenagers, while significantly less content is designed specifically for children. This reflects Netflix’s primary audience focus.
+
+## Movie Recommendations by Age Group
+
+```{r}
+library(dplyr)
+library(knitr)
+library(kableExtra)
+
+recommendations <- netflix_clean %>%
+  filter(type == "Movie") %>%
+  group_by(age_group) %>%
+  slice_head(n = 3) %>%
+  select(Age_Group = age_group, Title = title, Rating = rating)
+
+kable(recommendations) %>%
+  kable_styling(
+    full_width = FALSE,
+    position = "center",
+    font_size = 18
+  )
+```
+
+## Relationship Between Release Year and Duration
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(stringr)
+
+netflix_duration <- netflix_clean %>%
+  filter(type == "Movie") %>%
+  mutate(duration_num = as.numeric(str_extract(duration, "\\d+"))) %>%
+  drop_na(duration_num)
+
+netflix_duration %>%
+  group_by(release_year) %>%
+  summarise(avg_duration = mean(duration_num), .groups = "drop") %>%
+  ggplot(aes(x = release_year, y = avg_duration)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 1.5) +
+  labs(
+    title = "Average Movie Duration Over Time",
+    x = "Release Year",
+    y = "Average Duration (minutes)"
+  ) +
+  theme_minimal()
+```
+
+## Conclusion
+
+-   The analysis highlights key patterns in Netflix’s content strategy, including the dominance of certain countries, the popularity of specific genres, and the platform’s rapid growth in recent years.
+
+-   While Netflix continues to expand its content library, core characteristics such as movie duration remain consistent, reflecting stable industry standards.
+
+-   Overall, the findings demonstrate how data analysis can be used to uncover meaningful insights and support content-related decision-making.
+
+## Key Takeaways
+
+•⁠ ⁠Netflix content is heavily concentrated in a few major production countries
+
+•⁠ ⁠The platform primarily targets adult and teenage audiences
+
+•⁠ ⁠Content diversity is reflected in the popularity of international movies
+
+•⁠ ⁠Data-driven approaches can support recommendation systems and strategic decisions
+
+•⁠ ⁠Using Quarto :)

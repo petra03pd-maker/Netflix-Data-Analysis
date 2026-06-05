@@ -1,0 +1,373 @@
+---
+title: "Netflix Data Analysis Report"
+subtitle: "From Data Cleaning to Advanced Insights"
+author: "Petra Dudas and Flaminia Neda"
+format:
+  html:
+    theme: darkly
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    css: styles.css
+execute:
+  echo: false
+  warning: false
+  message: false
+editor: visual
+---
+
+# Introduction
+
+Netflix is one of the world’s leading streaming platforms, offering a wide variety of movies andtelevision shows to audiences around the globe. Over the years, Netflix has expanded ist catalogue significantly and invested heavily in international content and original productions.
+
+The purpose of this project is to analyze Netflix’s content library using data analytics techniques.
+
+The project covers the complete workflow from data cleaning and preparation to visualization and predictive modelling. We analized content types, producing countries, genres, and growth patterns, this aims to uncover meaningful insights into Netflix’s catalogue and its development over time.
+
+# Dataset Description
+
+The dataset contains information about titles available on Netflix, including movies and television shows. Each observation represents a single title and includes attributes such as content type, country of production, release year, genre, and duration.
+
+The dataset was obtained from a kaggle – a publicly available Netflix titles database – and it serves as the basis for all analyses conducted in this project.
+
+| Variable     | Description           |
+|--------------|-----------------------|
+| title        | Name of the title     |
+| type         | Movie or TV Show      |
+| country      | Country of production |
+| release_year | Year released         |
+| listed_in    | Genre/category        |
+| duration     | Runtime or seasons    |
+
+# Data Cleaning
+
+The quality of any data analysis depends heavily on the quality of the underlying dataset.
+
+Therefore, before conducting the analysis, the Netflix dataset was carefully inspected and cleaned to ensure that it is consistent, accurate, and reliable.
+
+Several common data quality issues were addressed, including missing values, inconsistent formatting, and duplicate records. In addition, variables were transformed into more suitable formats to facilitate analysis and visualization. These steps in the preprocessing stage helped create a clean and structured dataset that we could use confidently for answering the research questions and generating meaningful insights.
+
+## Dataset Inspection
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(knitr)
+
+netflix_raw <- read_csv("data/netflix_titles.csv")
+
+overview_table <- tibble(
+  Metric = c("Rows", "Columns", "Duplicate rows"),
+  Value = c(
+    nrow(netflix_raw),
+    ncol(netflix_raw),
+    sum(duplicated(netflix_raw))
+  )
+)
+
+kable(overview_table)
+```
+
+## Missing Values Before Cleaning
+
+```{r}
+missing_values <- netflix_raw %>%
+  summarise(across(everything(), ~ sum(is.na(.)))) %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "Variable",
+    values_to = "Missing Values"
+  ) %>%
+  filter(`Missing Values` > 0)
+
+kable(missing_values)
+```
+
+## Cleaning Transformations
+
+```{r}
+netflix_clean <- netflix_raw %>%
+  mutate(
+    director = if_else(is.na(director), "Unknown", director),
+    cast = if_else(is.na(cast), "Unknown", cast),
+    country = if_else(is.na(country), "Unknown", country),
+    rating = if_else(is.na(rating), "Unknown", rating)
+  ) %>%
+  filter(!is.na(date_added), !is.na(duration))
+
+missing_after <- netflix_clean %>%
+  summarise(across(c(director, cast, country, rating, date_added, duration), ~ sum(is.na(.)))) %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "Variable",
+    values_to = "Missing Values After Cleaning"
+  )
+
+kable(missing_after)
+```
+
+## Duration Transformation
+
+```{r}
+netflix_clean <- netflix_clean %>%
+  mutate(
+    date_added = mdy(date_added),
+    duration_number = as.numeric(str_extract(duration, "\\d+")),
+    duration_type = case_when(
+      str_detect(duration, "Season") ~ "Seasons",
+      str_detect(duration, "min") ~ "Minutes",
+      TRUE ~ "Unknown"
+    )
+  )
+
+duration_example <- head(
+  netflix_clean[, c("duration", "duration_number", "duration_type")]
+)
+
+kable(duration_example)
+```
+
+## Country and Genre Separation
+
+```{r}
+netflix_countries <- netflix_clean %>%
+  separate_rows(country, sep = ", ")
+
+netflix_genres <- netflix_clean %>%
+  separate_rows(listed_in, sep = ", ")
+
+country_example <- netflix_clean %>%
+  select(title, country) %>%
+  filter(country != "Unknown") %>%
+  slice_head(n = 6)
+
+kable(country_example)
+
+genre_example <- netflix_clean %>%
+  select(title, listed_in) %>%
+  slice_head(n = 6) %>%
+  rename(`Separated genres` = listed_in)
+
+kable(genre_example)
+```
+
+## Final Dataset Summary
+
+```{r}
+final_table <- tibble(
+  Metric = c(
+    "Rows after cleaning",
+    "Columns after cleaning",
+    "Country records",
+    "Genre records"
+  ),
+  Value = c(
+    nrow(netflix_clean),
+    ncol(netflix_clean),
+    nrow(netflix_countries),
+    nrow(netflix_genres)
+  )
+)
+
+kable(final_table)
+```
+
+# Research Questions
+
+This analysis aims to answer the following research questions:
+
+1\. Are Movies or TV Shows more common on Netflix?
+
+2\. Which countries contribute the most content to Netflix?
+
+3\. Which genres are most frequently represented in Netflix’s catalogue?
+
+4\. How has Netflix’s content library grown over time?
+
+5\. Can future Netflix content growth be estimated using linear regression?
+
+# Analysis
+
+## Movies vs TV Shows
+
+The first research question explores the distribution of content types available on Netflix.
+
+```{r}
+netflix_clean %>%
+  count(type) %>%
+  ggplot(aes(x = type, y = n)) +
+  geom_col(fill = "#E50914") +
+  labs(
+    title = "Distribution of Movies and TV Shows",
+    x = "Content Type",
+    y = "Number of Titles"
+  ) +
+  theme_minimal()
+```
+
+Understanding whether movies or series dominate the platform provides insight into Netflix’s overall content strategy. And could provide insight for future investors and stakeholders. The results show that movies represent the majority of titles available on Netflix. Although television shows make up an important part of the feed, Netflix’s content library remains primarily movie-oriented. This suggests that films continue to play a central role in the platform’s content strategy.
+
+## Top Producing Countries
+
+The second research question investigates which countries make up the largest number of titles in Netflix’s catalogue. This provides insight into the geographical distribution of content production and highlights Netflix’s strongest content markets and their presence all over the globe.
+
+```{r}
+netflix_clean %>%
+  filter(!is.na(country),
+         country != "Unknown",
+         country != "") %>%
+  count(country, sort = TRUE) %>%
+  slice_head(n = 5) %>%
+  ggplot(aes(x = reorder(country, n), y = n)) +
+  geom_col(fill = "#E50914") +
+  coord_flip() +
+  labs(
+    title = "Top 5 Countries on Netflix",
+    x = "Country",
+    y = "Number of Titles"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+top_countries <- netflix_clean %>%
+  filter(!is.na(country),
+         country != "Unknown",
+         country != "") %>%
+  count(country, sort = TRUE) %>%
+  slice_head(n = 5)
+
+knitr::kable(top_countries)
+```
+
+The analysis shows that the United States contributes the largest number of titles to Netflix’s catalogue, followed by India and the United Kingdom. This finding reflects Netflix’s strong presence in major entertainment markets and showcases the platform’s reliance on content from both North America and international production hubs. The results also highlight that Netflix has global reach, as content originates from a diverse range of countries rather than a single dominant region.
+
+## Most Common Genres
+
+The third research question focuses on which genres are most frequently represented in Netflix’s selection. Since one title can belong to multiple genres, the cleaned genre dataset is used for this analysis. This makes the result more reliable and accurate.
+
+```{r}
+netflix_genres %>%
+  count(listed_in, sort = TRUE) %>%
+  slice_head(n = 10) %>%
+  ggplot(aes(x = reorder(listed_in, n), y = n)) +
+  geom_col(fill = "#E50914") +
+  coord_flip() +
+  labs(
+    title = "Top 10 Genres on Netflix",
+    x = "Genre",
+    y = "Number of Titles"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+top_genres <- netflix_genres %>%
+  count(listed_in, sort = TRUE) %>%
+  slice_head(n = 10)
+
+knitr::kable(top_genres)
+```
+
+The results show that International Movies are the most common genres in Netflix’s catalogue. This highlights Netflix’s strong focus on globally diverse content and implies that the platform offers a wide range of international productions to appeal to audiences across different regions. Making them reach audiences from all over the world.
+
+## Content Growth Over Time
+
+The fourth research question explores how Netflix’s content library has developed over time. For this analysis, the date on which each title was added to Netflix is used to count the number of titles added per year.
+
+```{r}
+netflix_clean %>%
+  mutate(year_added = year(date_added)) %>%
+  filter(!is.na(year_added)) %>%
+  count(year_added) %>%
+  ggplot(aes(x = year_added, y = n)) +
+  geom_line(color = "#E50914", linewidth = 1.2) +
+  geom_point(color = "#E50914", size = 2) +
+  labs(
+    title = "Netflix Content Growth Over Time",
+    x = "Year Added",
+    y = "Number of Titles Added"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+content_growth <- netflix_clean %>%
+  mutate(year_added = year(date_added)) %>%
+  filter(!is.na(year_added)) %>%
+  count(year_added)
+
+knitr::kable(content_growth)
+```
+
+The graph shows that the number of titles added to Netflix increased strongly over time, especially during the late 2010s. This indicates a phase of rapid catalogue expansion, during which Netflix highly increased the amount of available content on the platform.
+
+## Linear Regression Forecast
+
+The fifth research question examines whether Netflix’s future content growth can be estimated using linear regression. A linear regression model was applied to the number of titles added per year so we could identify the overall growth trend.
+
+```{r}
+titles_per_year <- netflix_clean %>%
+  filter(!is.na(release_year)) %>%
+  count(release_year)
+
+release_year_model <- lm(n ~ release_year, data = titles_per_year)
+
+ggplot(titles_per_year, aes(x = release_year, y = n)) +
+  geom_point(color = "#E50914", size = 2) +
+  geom_smooth(method = "lm", se = TRUE, color = "#E50914") +
+  labs(
+    title = "Growth of Netflix Content Over Time",
+    subtitle = "Linear regression showing the trend in released titles",
+    x = "Release Year",
+    y = "Number of Titles"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+model_summary <- summary(release_year_model)
+
+regression_table <- tibble(
+  Metric = c("Intercept", "Release year coefficient", "R-squared"),
+  Value = c(
+    coef(release_year_model)[1],
+    coef(release_year_model)[2],
+    model_summary$r.squared
+  )
+)
+
+knitr::kable(regression_table)
+```
+
+The regression line shows a positive trend, meaning that the number of titles added to Netflix generally increased over time. This suggests that Netflix’s selection expanded substantially during the observed period. However, the model is based on historical data and should thereforebe interpreted as an estimate rather than a guaranteed prediction of future growth.
+
+# GitHub Repository
+
+The project was documented and organized using GitHub. The repository contains the R script, Quarto report, presentation files, styling file, dataset, and rendered outputs. GitHub was used to store the project files in a structured way and to make the analysis reproducible.
+
+<https://github.com/petra03pd-maker/Netflix-Data-Analysis>
+
+# Key Findings
+
+The analysis showcased several important insights regarding Netflix’s content catalogue:
+
+-   Movies make up the majority of content available on Netflix, indicating that the platform remains primarily film-oriented.
+
+-   The United States is the largest contributor of content, followed by India and the United Kingdom.
+
+-   International Movies are among the most frequently represented genres, highlighting Netflix’s focus on globally diverse content.
+
+-   The number of titles added to Netflix increased substantially over time, particularly during the late 2010s.
+
+-   Linear regression analysis identified a strong positive relationship between time and the number of titles added, suggesting a long-term growth trend in Netflix’s catalogue.
+
+# Conclusion
+
+This project demonstrated the complete data analytics workflow, from data cleaning and preparation to visualization and predictive modelling. After addressing missing values, transforming variables, and restructuring the dataset, a series of analyses were conducted to explore Netflix’s content catalogue.
+
+The results showed that movies dominate the platform, the United States is the leading content-producing country, and International Movies represent one of the most common genres.
+
+Furthermore, the analysis revealed highly increased growth in Netflix’s catalogue over time. The linear regression model confirmed a strong positive relationship between time and the number of titles added, indicating a clear long-term expansion trend.
+
+In conclusion, this project showed us how data analytics techniques can be used to transform raw data into meaningful insights and support a deeper understanding of content trends within Netflix’s global catalogue.

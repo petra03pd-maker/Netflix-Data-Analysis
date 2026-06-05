@@ -1,0 +1,158 @@
+* Netflix-style RevealJS presentation */
+
+.reveal {
+  background-color: #141414;
+  color: #ffffff;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Slide background */
+.reveal .slide-background {
+  background-color: #141414 !important;
+}
+
+/* Main titles */
+.reveal h1,
+.reveal h2,
+.reveal h3 {
+  color: #E50914 !important;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* Slide title size */
+.reveal h1 {
+  font-size: 62px;
+}
+
+.reveal h2 {
+  font-size: 48px;
+  border-bottom: 3px solid #E50914;
+  padding-bottom: 10px;
+}
+
+.reveal h3 {
+  font-size: 34px;
+}
+
+/* Normal text */
+.reveal p,
+.reveal li {
+  color: #f5f5f5 !important;
+  font-size: 24px;
+  line-height: 1.4;
+}
+
+/* Bold words */
+.reveal strong {
+  color: #E50914 !important;
+  font-weight: 800;
+}
+
+/* Links */
+.reveal a {
+  color: #E50914 !important;
+}
+
+/* Tables */
+.reveal table {
+  color: #ffffff !important;
+  font-size: 18px;
+  margin-left: auto;
+  margin-right: auto;
+  border-collapse: collapse;
+}
+
+.reveal table th {
+  background-color: #E50914 !important;
+  color: #ffffff !important;
+  font-weight: bold;
+  padding: 8px;
+}
+
+.reveal table td {
+  background-color: #1f1f1f !important;
+  color: #ffffff !important;
+  padding: 7px;
+  border: 1px solid #333333;
+}
+
+/* Code output / chunks */
+.reveal pre code {
+  background-color: #1f1f1f !important;
+  color: #ffffff !important;
+  border-radius: 8px;
+}
+
+/* Slide numbers */
+.reveal .slide-number {
+  color: #E50914 !important;
+  font-weight: bold;
+}
+
+/* Make plots feel more integrated */
+.reveal img,
+.reveal svg {
+  border-radius: 10px;
+}
+
+/* Small Netflix-style accent line */
+.reveal section::before {
+  content: "";
+  display: block;
+  width: 70px;
+  height: 5px;
+  background-color: #E50914;
+  margin-bottom: 20px;
+}
+
+/* Netflix-style HTML report */
+
+body {
+  background-color: #141414;
+  color: #f5f5f5;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+h1, h2, h3 {
+  color: #E50914;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+h1 {
+  text-transform: uppercase;
+}
+
+h2 {
+  border-bottom: 3px solid #E50914;
+  padding-bottom: 8px;
+}
+
+p, li {
+  color: #f5f5f5;
+  line-height: 1.6;
+}
+
+strong {
+  color: #E50914;
+}
+
+a {
+  color: #E50914;
+}
+
+table {
+  color: #ffffff;
+}
+
+th {
+  background-color: #E50914;
+  color: #ffffff;
+}
+
+td {
+  background-color: #1f1f1f;
+  color: #ffffff;
+}
